@@ -69,7 +69,8 @@ class AllTogether:
             return
         try:
             # Connect to local MongoDB
-            client = MongoClient("mongodb+srv://2023kucp1041:YpFUwc2si0nNBlar@cluster0.evtq3ir.mongodb.net/")
+            mongo_url = os.getenv("MONGO_URL")
+            client = MongoClient(mongo_url)
             db = client[db_name]
             collection = db[collection_name]
 

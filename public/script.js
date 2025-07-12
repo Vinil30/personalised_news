@@ -9,8 +9,13 @@ let userProfile = {
 let newsData = [];
 let chatHistory = [];
 
-// MongoDB connection (using a simple API approach for frontend)
-const MONGODB_API_URL = 'http://localhost:3000/api';
+// Configuration
+const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000' 
+    : 'https://arenapulse-backend.onrender.com'; // Render deployment URL
+
+// Backend API URL (will be updated when backend is deployed)
+const MONGODB_API_URL = `${API_BASE_URL}/api`;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
