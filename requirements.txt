@@ -1,0 +1,9 @@
+transformers
+diffusers
+groq
+requests
+bs4
+dotenv
+gradio
+base64
+pymongo
