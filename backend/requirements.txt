@@ -3,7 +3,8 @@ diffusers
 groq
 requests
 bs4
-dotenv
+python-dotenv
 gradio
-base64
 pymongo
+schedule
+Pillow

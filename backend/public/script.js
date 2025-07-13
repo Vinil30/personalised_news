@@ -1,3 +1,4 @@
+// NOTE: The backend Python scripts (e.g., chatbot.py) require 'requests' to be installed in the Python environment.
 // Global variables
 let selectedInterests = [];
 let userProfile = {
@@ -122,6 +123,29 @@ function setupDashboard() {
     
     // Setup modals
     setupModals();
+    
+    // Setup back button for chatbot
+    document.getElementById('backToWebsiteBtn').addEventListener('click', () => {
+        document.getElementById('chatInterface').style.display = 'none';
+        document.getElementById('websiteInputSection').style.display = 'flex';
+        document.getElementById('backToWebsiteBtn').style.display = 'none';
+        
+        // Clear chat messages
+        document.getElementById('chatMessages').innerHTML = `
+            <div class="message bot-message">
+                <div class="message-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <p>Hello! I'm your AI assistant. I can help you find news, answer questions, or discuss topics you're interested in. What would you like to know?</p>
+                </div>
+            </div>
+        `;
+        
+        // Clear chat history and current URL
+        chatHistory = [];
+        window.currentChatUrl = null;
+    });
 }
 
 function updateProfileSection() {
@@ -396,7 +420,8 @@ function setupChatInterface() {
     
     sendBtn.addEventListener('click', sendMessage);
     chatInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             sendMessage();
         }
     });
@@ -410,7 +435,7 @@ function setupChatInterface() {
     });
 }
 
-function analyzeWebsite() {
+async function analyzeWebsite() {
     const websiteInput = document.getElementById('websiteInput');
     const url = websiteInput.value.trim();
     
@@ -433,39 +458,97 @@ function analyzeWebsite() {
     analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
     analyzeBtn.disabled = true;
     
-    // Simulate analysis (replace with actual backend integration later)
-    setTimeout(() => {
-        // Hide website input section and show chat interface
-        document.getElementById('websiteInputSection').style.display = 'none';
-        document.getElementById('chatInterface').style.display = 'flex';
+    try {
+        // Call the backend chatbot API
+        const response = await fetch(`${API_BASE_URL}/api/chatbot/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url })
+        });
         
-        // Show back button
-        document.getElementById('backToWebsiteBtn').style.display = 'flex';
+        const data = await response.json();
         
-        // Add initial message about the website
-        addMessageToChat(`I've analyzed ${url}. What would you like to know about this website?`, 'bot');
+        if (data.success) {
+            // Hide website input section and show chat interface
+            document.getElementById('websiteInputSection').style.display = 'none';
+            document.getElementById('chatInterface').style.display = 'flex';
+            
+            // Show back button
+            document.getElementById('backToWebsiteBtn').style.display = 'flex';
+            
+            // Store the current URL for chat context
+            window.currentChatUrl = url;
+            
+            // Add initial message about the website
+            addMessageToChat(`I've analyzed ${url}. Here's what I found:\n\n${data.message}`, 'bot');
+            
+            // Add a follow-up message
+            addMessageToChat("What would you like to know more about this website?", 'bot');
+        } else {
+            alert(`Analysis failed: ${data.error}`);
+        }
         
+    } catch (error) {
+        console.error('Error analyzing website:', error);
+        alert('Failed to analyze website. Please try again.');
+    } finally {
         // Reset button
         analyzeBtn.innerHTML = originalText;
         analyzeBtn.disabled = false;
-    }, 2000);
+    }
 }
 
-function sendMessage() {
+async function sendMessage() {
     const chatInput = document.getElementById('chatInput');
     const message = chatInput.value.trim();
     
     if (!message) return;
     
+    // Check if we have a current URL for context
+    if (!window.currentChatUrl) {
+        addMessageToChat("Please analyze a website first before asking questions.", 'bot');
+        return;
+    }
+    
     // Add user message to chat
     addMessageToChat(message, 'user');
     chatInput.value = '';
     
-    // Simulate AI response
-    setTimeout(() => {
-        const response = generateAIResponse(message);
-        addMessageToChat(response, 'bot');
-    }, 1000);
+    // Show typing indicator
+    const typingIndicator = addTypingIndicator();
+    
+    try {
+        // Call the backend chatbot API
+        const response = await fetch(`${API_BASE_URL}/api/chatbot/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                url: window.currentChatUrl, 
+                message,
+                history: chatHistory
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Remove typing indicator
+        removeTypingIndicator(typingIndicator);
+        
+        if (data.success) {
+            addMessageToChat(data.message, 'bot');
+        } else {
+            addMessageToChat(`Sorry, I couldn't process that request: ${data.error}`, 'bot');
+        }
+        
+    } catch (error) {
+        console.error('Error sending message:', error);
+        removeTypingIndicator(typingIndicator);
+        addMessageToChat("Sorry, I'm having trouble connecting. Please try again.", 'bot');
+    }
 }
 
 function addMessageToChat(message, sender) {
@@ -479,7 +562,7 @@ function addMessageToChat(message, sender) {
     
     const content = document.createElement('div');
     content.className = 'message-content';
-    content.innerHTML = `<p>${message}</p>`;
+    content.innerHTML = `<p>${message.replace(/\n/g, '<br>')}</p>`;
     
     messageDiv.appendChild(avatar);
     messageDiv.appendChild(content);
@@ -490,6 +573,42 @@ function addMessageToChat(message, sender) {
     
     // Store in chat history
     chatHistory.push({ sender, message, timestamp: new Date() });
+}
+
+function addTypingIndicator() {
+    const chatMessages = document.getElementById('chatMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'message bot-message typing-indicator';
+    typingDiv.id = 'typing-indicator';
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.innerHTML = '<i class="fas fa-robot"></i>';
+    
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.innerHTML = `
+        <div class="typing-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    `;
+    
+    typingDiv.appendChild(avatar);
+    typingDiv.appendChild(content);
+    chatMessages.appendChild(typingDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    return typingDiv;
+}
+
+function removeTypingIndicator(typingIndicator) {
+    if (typingIndicator && typingIndicator.parentNode) {
+        typingIndicator.parentNode.removeChild(typingIndicator);
+    }
 }
 
 function generateAIResponse(userMessage) {

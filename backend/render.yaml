@@ -2,12 +2,18 @@ services:
   - type: web
     name: arenapulse-backend
     env: node
-    buildCommand: npm install
-    startCommand: npm start
+    buildCommand: |
+      npm install
+      pip install -r requirements.txt
+    startCommand: bash render_deploy.sh
     envVars:
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MONGO_URL
         sync: false
       - key: PORT
         value: 10000 

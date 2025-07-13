@@ -1,3 +1,4 @@
+// NOTE: The Python scripts called by this server (e.g., chatbot.py) require 'requests' to be installed in the Python environment.
 const express = require('express');
 const { MongoClient } = require('mongodb');
 const cors = require('cors');
@@ -49,6 +50,211 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         message: 'ArenaPulse API is running'
     });
+});
+
+// Manual trigger for news generation
+app.post('/api/generate-news', async (req, res) => {
+    try {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        
+        console.log('🔄 Manual news generation triggered...');
+        
+        // Run the Python script using the virtual environment Python
+        const pythonPath = '../venv/Scripts/python.exe';
+        const { stdout, stderr } = await execAsync(`"${pythonPath}" auto_generator.py --single-run`);
+        
+        if (stderr) {
+            console.error('Python script stderr:', stderr);
+        }
+        
+        console.log('✅ News generation completed');
+        res.json({ 
+            success: true, 
+            message: 'News generation completed successfully',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error triggering news generation:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to generate news',
+            message: error.message
+        });
+    }
+});
+
+// Admin panel route
+app.get('/admin', (req, res) => {
+    res.sendFile(__dirname + '/public/admin.html');
+});
+
+// Chatbot endpoint
+app.post('/api/chatbot/analyze', async (req, res) => {
+    try {
+        const { url } = req.body;
+        
+        if (!url) {
+            return res.status(400).json({ error: 'URL is required' });
+        }
+        
+        // Import the ChatBot class
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        
+        console.log(`🤖 Analyzing website: ${url}`);
+        
+        // Create a temporary Python script to avoid command line issues
+        const pythonScript = `
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from chatbot import ChatBot
+    
+    chatbot = ChatBot('${url}')
+    result = chatbot.chat([])
+    print("SUCCESS:" + result)
+except Exception as e:
+    print("ERROR:" + str(e))
+`;
+        
+        // Write the script to a temporary file
+        const fs = require('fs');
+        const tempScriptPath = './temp_chatbot_script.py';
+        fs.writeFileSync(tempScriptPath, pythonScript);
+        
+        // Run the Python script using the virtual environment Python
+        const pythonPath = '../venv/Scripts/python.exe';
+        const { stdout, stderr } = await execAsync(`"${pythonPath}" "${tempScriptPath}"`);
+        
+        // Clean up the temporary file
+        fs.unlinkSync(tempScriptPath);
+        
+        if (stderr) {
+            console.error('Chatbot stderr:', stderr);
+        }
+        
+        console.log('Python output:', stdout);
+        
+        if (!stdout || stdout.trim() === '') {
+            throw new Error('No output from Python script');
+        }
+        
+        const output = stdout.trim();
+        
+        if (output.startsWith('SUCCESS:')) {
+            const message = output.substring(8); // Remove "SUCCESS:" prefix
+            res.json({
+                success: true,
+                message: message,
+                url: url
+            });
+        } else if (output.startsWith('ERROR:')) {
+            const error = output.substring(6); // Remove "ERROR:" prefix
+            res.status(500).json({
+                success: false,
+                error: error
+            });
+        } else {
+            throw new Error('Unexpected output format from Python script');
+        }
+        
+    } catch (error) {
+        console.error('❌ Chatbot error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to analyze website',
+            message: error.message
+        });
+    }
+});
+
+// Chatbot chat endpoint
+app.post('/api/chatbot/chat', async (req, res) => {
+    try {
+        const { url, message, history } = req.body;
+        
+        if (!url || !message) {
+            return res.status(400).json({ error: 'URL and message are required' });
+        }
+        
+        // Import the ChatBot class
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+        
+        console.log(`💬 Chat message for ${url}: ${message}`);
+        
+        // Create a temporary Python script for chat
+        const pythonScript = `
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from chatbot import ChatBot
+    
+    chatbot = ChatBot('${url}')
+    result = chatbot.chat(${JSON.stringify(history || [])})
+    print("SUCCESS:" + result)
+except Exception as e:
+    print("ERROR:" + str(e))
+`;
+        
+        // Write the script to a temporary file
+        const fs = require('fs');
+        const tempScriptPath = './temp_chatbot_chat_script.py';
+        fs.writeFileSync(tempScriptPath, pythonScript);
+        
+        // Run the Python script using the virtual environment Python
+        const pythonPath = '../venv/Scripts/python.exe';
+        const { stdout, stderr } = await execAsync(`"${pythonPath}" "${tempScriptPath}"`);
+        
+        // Clean up the temporary file
+        fs.unlinkSync(tempScriptPath);
+        
+        if (stderr) {
+            console.error('Chatbot stderr:', stderr);
+        }
+        
+        console.log('Python chat output:', stdout);
+        
+        if (!stdout || stdout.trim() === '') {
+            throw new Error('No output from Python script');
+        }
+        
+        const output = stdout.trim();
+        
+        if (output.startsWith('SUCCESS:')) {
+            const message = output.substring(8); // Remove "SUCCESS:" prefix
+            res.json({
+                success: true,
+                message: message,
+                url: url
+            });
+        } else if (output.startsWith('ERROR:')) {
+            const error = output.substring(6); // Remove "ERROR:" prefix
+            res.status(500).json({
+                success: false,
+                error: error
+            });
+        } else {
+            throw new Error('Unexpected output format from Python script');
+        }
+        
+    } catch (error) {
+        console.error('❌ Chatbot chat error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to process chat message',
+            message: error.message
+        });
+    }
 });
 
 // Serve base64 images as actual image files
