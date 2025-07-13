@@ -12,7 +12,7 @@ let chatHistory = [];
 // Configuration
 const API_BASE_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:3000' 
-    : 'https://your-render-app.onrender.com'; // Replace with your actual Render URL
+    : 'https://personalised-news.onrender.com'; // Updated to match your actual Render URL
 
 // Backend API URL (will be updated when backend is deployed)
 const MONGODB_API_URL = `${API_BASE_URL}/api`;
@@ -165,7 +165,8 @@ async function loadNewsFeed() {
             });
             
             if (!response.ok) {
-                throw new Error('Failed to fetch news from API');
+                console.error('API Error:', response.status, response.statusText);
+                throw new Error(`Failed to fetch news from API: ${response.status}`);
             }
             
             fetchedNews = await response.json();
@@ -173,7 +174,8 @@ async function loadNewsFeed() {
             // If no interests selected, show all news
             const response = await fetch(`${MONGODB_API_URL}/news`);
             if (!response.ok) {
-                throw new Error('Failed to fetch news from API');
+                console.error('API Error:', response.status, response.statusText);
+                throw new Error(`Failed to fetch news from API: ${response.status}`);
             }
             fetchedNews = await response.json();
         }

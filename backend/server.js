@@ -8,7 +8,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:3000', 'https://personalised-news.onrender.com', 'https://your-render-app.onrender.com'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.static('public')); // Serve static files from public directory
 
@@ -31,6 +36,20 @@ async function connectToMongoDB() {
 }
 
 // API Routes
+
+// Serve favicon
+app.get('/favicon.ico', (req, res) => {
+    res.redirect('/favicon.svg');
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        message: 'ArenaPulse API is running'
+    });
+});
 
 // Serve base64 images as actual image files
 app.get('/api/image/:id', async (req, res) => {
